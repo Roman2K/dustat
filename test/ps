@@ -1,0 +1,25 @@
+CONTAINER ID        IMAGE                 COMMAND                  CREATED             STATUS                    PORTS                                              NAMES
+5b0491df9933        ytdump                "./docker/entrypoint…"   18 hours ago        Created                                                                      services2_ytdump_run_4ec94cd52717
+ba52b33a5da1        ytdump                "./docker/entrypoint…"   18 hours ago        Created                                                                      services2_ytdump_run_4e1ab339168b
+247759c65178        crystallang/crystal   "crystal build --sta…"   42 hours ago        Created                                                                      funny_elbakyan
+cb992e253aee        crystallang/crystal   "crystal build main.…"   42 hours ago        Created                                                                      happy_kepler
+14b43fce7ece        crystallang/crystal   "crystal build main.…"   42 hours ago        Created                                                                      mystifying_wing
+d674fc1f4f3b        crystallang/crystal   "crystal build main.…"   42 hours ago        Created                                                                      nice_lederberg
+e7cfa91494aa        linuxserver/radarr    "/init"                  2 days ago          Up 2 days                 7878/tcp                                           docker-compose_radarr_1
+81aeb3f47b49        bash                  "docker-entrypoint.s…"   2 days ago          Exited (0) 2 days ago                                                        unruffled_ptolemy
+fad3b224775a        bash                  "docker-entrypoint.s…"   2 days ago          Exited (0) 2 days ago                                                        amazing_roentgen
+254b7410e077        bash                  "docker-entrypoint.s…"   2 days ago          Exited (0) 2 days ago                                                        upbeat_torvalds
+f14e2c5ee7b9        bash                  "docker-entrypoint.s…"   2 days ago          Exited (0) 2 days ago                                                        lucid_mirzakhani
+d68e18055cad        bash                  "docker-entrypoint.s…"   2 days ago          Exited (0) 2 days ago                                                        sad_mccarthy
+a465302c328a        bash                  "docker-entrypoint.s…"   2 days ago          Exited (127) 2 days ago                                                      kind_jones
+62fb8376d2f3        bash                  "docker-entrypoint.s…"   2 days ago          Exited (0) 2 days ago                                                        bold_burnell
+c32450320b79        ubuntu                "/bin/bash"              3 days ago          Exited (0) 3 days ago                                                        keybase
+90874f12071a        traefik:v2.0          "/entrypoint.sh --co…"   4 days ago          Up 4 days                 0.0.0.0:80->80/tcp                                 docker-compose_traefik_1
+6b4f0d643bfc        influxdb:1.7.8        "/entrypoint.sh infl…"   11 days ago         Up 4 days                 0.0.0.0:28086->8086/tcp, 0.0.0.0:28088->8088/tcp   docker-compose_influxdb-merge_1
+067de6b7d241        bubblebot-ruby        "/usr/bin/dumb-init …"   2 weeks ago         Up 19 hours                                                                  docker-compose_prices-websocket_1
+1c9eb3cbcff2        occitech/ssh-client   "sh -c 'cd && cp con…"   2 weeks ago         Up 3 days                 0.0.0.0:23128->23128/tcp                           docker-compose_wis-squid_1
+3db068dfec43        priceconv             "/entrypoint.sh"         2 weeks ago         Up 4 days                                                                    docker-compose_prices_1
+97789230a4a0        occitech/ssh-client   "sh -c 'cd && cp con…"   2 weeks ago         Up 4 days                                                                    docker-compose_wis-grafana_1
+87103f6b91f2        influxdb:1.7.8        "/entrypoint.sh infl…"   2 weeks ago         Up 19 hours               8086/tcp                                           docker-compose_influxdb_1
+226ce2f1275c        grafana/grafana       "/run.sh"                2 weeks ago         Up 4 days                 3000/tcp                                           docker-compose_grafana_1
+59c31af952c0        redis                 "docker-entrypoint.s…"   2 weeks ago         Up 4 days                 6379/tcp                                           docker-compose_redis_1

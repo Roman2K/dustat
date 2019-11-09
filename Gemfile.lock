@@ -1,0 +1,19 @@
+PATH
+  remote: ../utils-ruby
+  specs:
+    utils-ruby (0.1.0)
+
+GEM
+  remote: https://rubygems.org/
+  specs:
+    minitest (5.13.0)
+
+PLATFORMS
+  ruby
+
+DEPENDENCIES
+  minitest
+  utils-ruby!
+
+BUNDLED WITH
+   2.0.2

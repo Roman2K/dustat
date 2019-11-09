@@ -1,0 +1,8 @@
+#!/usr/bin/env ruby
+
+require 'bundler'
+Bundler.setup
+
+Dir.glob __dir__ + "/../test/**/*.rb" do |f|
+  load f
+end
