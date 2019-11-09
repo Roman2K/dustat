@@ -4,7 +4,7 @@ require 'minitest/autorun'
 
 class DockerTest < Minitest::Test
   def test_system_df
-    df = from_io Docker::SystemDF, "system_df_a.json"
+    df = from_io Docker::SystemDF, "system_df_v.json"
     assert_equal 4, df.size
 
     imgs = df.fetch("Images")

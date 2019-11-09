@@ -1,16 +1,22 @@
 require 'json'
 
 class Docker
-  def initialize(cmd)
+  def initialize(cmd=["docker"])
     @cmd = cmd
   end
 
-  def system_df_a
-    run SystemDF, "system", "df", "-a"
+  def system_df_v
+    run SystemDF, "system", "df", "-v"
+  end
+
+  def ps_a
+    run PS, "ps", "-a"
   end
 
   private def run(parser, *cmd)
-    IO.popen [*@cmd, *cmd, "--format", "{{json .}}"] do |p|
+    cmd = [*@cmd, *cmd, "--format", "{{json .}}"]
+    IO.popen cmd do |p|
+      p.ungetc (p.getc or raise "command failed: `%s`" % [cmd * " "])
       parser.new p
     end
   end
@@ -33,17 +39,19 @@ class Docker
 
     private def new_record(h)
       type = self.class::Record
-      values = self.class::COLS.map { |k, type|
+      values = []
+      self.class::COLS.each do |k, type|
         val = h.fetch k
-        case type
-        when nil then next
-        when :str then val
-        when :arr then val.split(",")
-        when :int then val.to_i
-        when :size then self.class.conv_size(val)
-        else raise "unknown type: %p" % [type]
-        end
-      }
+        values << \
+          case type
+          when nil then next
+          when :str then val
+          when :arr then val.split(",")
+          when :int then val.to_i
+          when :size then self.class.conv_size(val)
+          else raise "unknown type: %p" % [type]
+          end
+      end
       values.size == type.members.size or raise "wrong number of values"
       type.new *values
     end
@@ -70,7 +78,6 @@ class Docker
         "VirtualSize" => :size,
         "Containers" => :int,
       }
-
       Record = Struct.new \
         :repo, :tag, :id,
         :size, :shared_size, :unique_size, :virtual_size, :containers
@@ -84,7 +91,6 @@ class Docker
         "Status" => :str,
         "Names" => :arr,
       }
-
       Record = Struct.new :id, :image, :size, :status, :names
     end
 
@@ -94,7 +100,6 @@ class Docker
         "Links" => :int,
         "Size" => :size,
       }
-
       Record = Struct.new :name, :links, :size
     end
 
@@ -108,7 +113,6 @@ class Docker
         # usage: nil,
         # shared: nil,
       }
-
       Record = Struct.new :id#, :size
     end
   end # SystemDF
@@ -121,7 +125,6 @@ class Docker
       "Status" => :str,
       "Names" => :arr,
     }
-
     Record = Struct.new :id, :image, :size, :status, :names
   end
 end

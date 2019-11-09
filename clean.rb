@@ -1,30 +1,19 @@
 require 'pathname'
 require 'utils'
-
-class DockerCompose
-  def initialize(exe)
-    @exe = Utils.expand_tilde(Pathname exe)
-    @project = @exe.dirname.basename.to_s.tap { |s|
-      s =~ /[a-z0-9]/i or raise "couldn't determine project name"
-    }
-  end
-
-  def volumes
-    vols = 
-      IO.popen([@exe.to_s, "config", "--volumes"], &:read).
-        tap { $?.success? or raise "config --volumes failed" }.
-        split("\n").
-        map { |name| Volume[self, name] }
-  end
-
-  Volume = Struct.new :compose, :name do
-  end
-end
+require_relative 'docker'
+require_relative 'docker_compose'
 
 if $0 == __FILE__
   dcs = [
-    DockerCompose.new("~/code/services2/docker-compose_oneshot"),
-    DockerCompose.new("~/code/services2/docker-compose/run"),
+    DockerCompose.new(["~/code/services2/docker-compose_oneshot"]),
+    DockerCompose.new(["~/code/services2/docker-compose/run"]),
   ]
-  pp dcs.map &:volumes
+  # pp vols: dcs.map(&:volumes)
+  pp pss: dcs.map(&:ps_a)
+
+#   docker = Docker.new
+#   df = docker.system_df_v
+#   ps = docker.ps_a
+
+#   pp ps: ps, df: df
 end

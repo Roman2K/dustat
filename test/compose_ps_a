@@ -1,0 +1,14 @@
+             Name                            Command               State               Ports             
+---------------------------------------------------------------------------------------------------------
+docker-compose_grafana_1          /run.sh                          Up      3000/tcp                      
+docker-compose_influxdb-merge_1   /entrypoint.sh influxd           Up      0.0.0.0:28086->8086/tcp,      
+                                                                           0.0.0.0:28088->8088/tcp       
+docker-compose_influxdb_1         /entrypoint.sh influxd           Up      8086/tcp                      
+docker-compose_prices-            /usr/bin/dumb-init -- /ent ...   Up                                    
+websocket_1                                                                                              
+docker-compose_prices_1           /entrypoint.sh                   Up                                    
+docker-compose_radarr_1           /init                            Up      7878/tcp                      
+docker-compose_redis_1            docker-entrypoint.sh redis ...   Up      6379/tcp                      
+docker-compose_traefik_1          /entrypoint.sh --configfil ...   Up      0.0.0.0:80->80/tcp            
+docker-compose_wis-grafana_1      sh -c cd && cp config .ssh ...   Up                                    
+docker-compose_wis-squid_1        sh -c cd && cp config .ssh ...   Up      0.0.0.0:23128->23128/tcp      
