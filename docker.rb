@@ -1,69 +1,51 @@
-module Docker
-  class MultisectionParser
-    def from_io(io)
-      res, cur = {}, nil
-      sep, skip_sep = true, 0
-      until io.eof?
-        l = io.readline.chomp
-        case
-        when l.empty?
-          if skip_sep > 0 then skip_sep -= 1 else sep = true end
-        when sep
-          id, section = (section_parser(l) or raise "unknown section: %p" % [l])
-          cur = res[id] = section.new
-          sep = false
-          skip_sep = 1
-        when cur
-          cur << l
-        else
-          raise "unhandled line: %p" % [l]
+require 'json'
+
+class Docker
+  def initialize(cmd)
+    @cmd = cmd
+  end
+
+  def system_df_a
+    run SystemDF, "system", "df", "-a"
+  end
+
+  private def run(parser, *cmd)
+    IO.popen [*@cmd, *cmd, "--format", "{{json .}}"] do |p|
+      parser.new p
+    end
+  end
+
+  class Multisection < Hash
+    def initialize(io)
+      JSON.load(io).each do |k,items|
+        self[k] = self.class.const_get(k).new(items)
+      end
+      freeze
+    end
+  end
+
+  class Section < Array
+    def initialize(items)
+      items = items.each_line.map { |l| JSON.load l } unless Array === items
+      super items.map { |i| new_record i }
+      freeze
+    end
+
+    private def new_record(h)
+      type = self.class::Record
+      values = self.class::COLS.map { |k, type|
+        val = h.fetch k
+        case type
+        when nil then next
+        when :str then val
+        when :arr then val.split(",")
+        when :int then val.to_i
+        when :size then self.class.conv_size(val)
+        else raise "unknown type: %p" % [type]
         end
-      end
-      res
-    end
-
-    private def section_parser(s)
-      self.class::SECTIONS.each do |id,(re,cl)|
-        re === s or next
-        return [id, cl] if re === s
-      end
-      nil
-    end
-  end # MultisectionParser
-
-  class SectionParser
-    def initialize
-      @items = nil
-    end
-
-    def each(&block); @items&.each &block end
-    include Enumerable
-
-    def <<(s)
-      values = s.split(/ {3,}/)
-      actual, expected = values.size, self.class::COLS.size
-      actual == expected \
-        or raise "unexpected number of columns: %d instead of %d" \
-          % [actual, expected]
-      if @items.nil?
-        @items = []
-      else
-        rec = self.class::Record.new
-        types = self.class::COLS.values
-        self.class::COLS.zip(values) do |(name, type), val|
-          rec[name] = 
-            case type
-            when nil then next
-            when :str then val
-            when :arr then val.split(",")
-            when :int then val.to_i
-            when :size then self.class.conv_size(val)
-            else raise "unknown type: %p" % [type]
-            end
-        end
-        @items << rec
-      end
-      self
+      }
+      values.size == type.members.size or raise "wrong number of values"
+      type.new *values
     end
 
     UNITS = %w[B KB MB GB TB]
@@ -76,80 +58,68 @@ module Docker
     end
   end # SectionParser
 
-  class SystemDF < MultisectionParser
-    class Images < SectionParser
+  class SystemDF < Multisection
+    class Images < Section
       COLS = {
-        repo: :str,
-        tag: :str,
-        id: :str,
-        created_at: nil,
-        size: :size,
-        shared_size: :size,
-        unique_size: :size,
-        containers: :int,
+        "Repository" => :str,
+        "Tag" => :str,
+        "ID" => :str,
+        "Size" => :size,
+        "SharedSize" => :size,
+        "UniqueSize" => :size,
+        "VirtualSize" => :size,
+        "Containers" => :int,
       }
 
       Record = Struct.new \
         :repo, :tag, :id,
-        :size, :shared_size, :unique_size, :containers
+        :size, :shared_size, :unique_size, :virtual_size, :containers
     end
 
-    class Containers < SectionParser
+    class Containers < Section
       COLS = {
-        id: :str,
-        image: :str,
-        cmd: nil,
-        local_vols: nil,
-        size: :size,
-        created_at: nil,
-        status: :str,
-        names: :arr,
+        "ID" => :str,
+        "Image" => :str,
+        "Size" => :size,
+        "Status" => :str,
+        "Names" => :arr,
       }
 
       Record = Struct.new :id, :image, :size, :status, :names
     end
 
-    class Volumes < SectionParser
+    class Volumes < Section
       COLS = {
-        name: :str,
-        links: :int,
-        size: :size,
+        "Name" => :str,
+        "Links" => :int,
+        "Size" => :size,
       }
 
       Record = Struct.new :name, :links, :size
     end
 
-    class Caches < SectionParser
+    class BuildCache < Section
       COLS = {
         id: :str,
-        type: nil,
-        size: :size,
-        created_at: nil,
-        last_used: nil,
-        usage: nil,
-        shared: nil,
+        # type: nil,
+        # size: :size,
+        # created_at: nil,
+        # last_used: nil,
+        # usage: nil,
+        # shared: nil,
       }
 
-      Record = Struct.new :id, :size
+      Record = Struct.new :id#, :size
     end
-
-    SECTIONS = {
-      images:     [/^images /i,      Images],
-      containers: [/^containers /i,  Containers],
-      volumes:    [/^local vol/i,    Volumes],
-      caches:     [/^build cache/i,  Caches],
-    }
   end # SystemDF
 
-  class PS < SectionParser
+  class PS < Section
     COLS = {
-      id: :str,
-      image: :str,
-      cmd: nil,
-      created_at: nil,
-      status: :str,
-      size: :size,
-      names: :arr,
+      "ID" => :str,
+      "Image" => :str,
+      "Size" => :size,
+      "Status" => :str,
+      "Names" => :arr,
     }
 
     Record = Struct.new :id, :image, :size, :status, :names
