@@ -37,4 +37,43 @@ class DockerTest < Minitest::Test
     assert_equal "Created", ctn.status
     assert_equal ["services2_ytdump_run_4ec94cd52717"], ctn.names
   end
+
+  def test_NormImage
+    a = Docker::NormImage.new("sha256:7b3df4ce7e5e")
+    b = Docker::NormImage.new("sha256:7b3df4ce7e5efff")
+    c = Docker::NormImage.new("sha256:7b3df4ce7e5eff0")
+    assert a === a
+    assert a === b
+    refute b === c
+    refute c === b
+
+    img = Docker::NormImage.new("traefik")
+    assert_equal "traefik", img.repo
+    assert_equal "latest", img.tag
+    assert_nil img.id
+
+    b = Docker::NormImage.new("traefik")
+    assert img === b
+
+    b = Docker::NormImage.new("traefik:latest")
+    assert img === b
+
+    b = Docker::NormImage.new("traefik:2")
+    refute img === b
+
+    b = Docker::NormImage.new(DockerCompose::Images::Record[
+      "traefik", "latest", nil,
+    ])
+    assert img === b
+
+    b = Docker::NormImage.new(DockerCompose::Images::Record[
+      "traefik", "latest", "7b3df4ce7e5e",
+    ])
+    assert img === b
+
+    img = Docker::NormImage.new(DockerCompose::Images::Record[
+      "traefik", "latest", "0b3df4ce7e5e",
+    ])
+    refute img === b
+  end
 end

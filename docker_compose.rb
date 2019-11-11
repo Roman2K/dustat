@@ -1,3 +1,7 @@
+require 'pathname'
+require 'utils'
+require 'yaml'
+
 class DockerCompose
   def initialize(cmd)
     exe = Utils.expand_tilde(Pathname cmd.fetch(0))
@@ -7,9 +11,20 @@ class DockerCompose
     }
   end
 
-  def volumes
-    run("config", "--volumes").split
+  def images
+    run_parser Images, "images"
   end
+
+  def config_images
+    run("config") { |p| YAML.load p }.
+      fetch("services").map { |k,v| v["image"] }.compact.uniq
+  end
+
+  def volumes
+    run("config", "--volumes").split.map { |v| Volume["#{@project}_#{v}", v] }
+  end
+
+  Volume = Struct.new :full, :short
 
   private def run(*cmd)
     cmd.unshift *@cmd
@@ -33,7 +48,7 @@ class DockerCompose
 
   class Parser < Array
     def initialize(io)
-      lines = io.each_line.to_a[2..-1]
+      lines = io.each_line.to_a[2..-1] or raise "unexpected number of lines"
       self.class.unwrap_lines(lines).each do |values|
         rec = self.class::Record.new
         n = 0
@@ -43,14 +58,13 @@ class DockerCompose
             when nil then next
             when :str then val.to_s
             when :arr then val.to_s.split(",")
-            else raise "unknown type: %p" % [p]
+            else raise "unknown type: %p" % [type]
             end
           n += 1
         end
         n == rec.size or raise "some columns missing"
         self << rec
       end
-      freeze
     end
 
     SEP = / {3,}/
@@ -76,7 +90,6 @@ class DockerCompose
           pos += adv
           row << col
         end
-        row << line[pos..-1] if pos < line.size
         res << row
       end
       res
@@ -91,5 +104,16 @@ class DockerCompose
       ports: :arr,
     }
     Record = Struct.new :name, :state, :ports
+  end
+
+  class Images < Parser
+    COLS = {
+      container: nil,
+      repo: :str,
+      tag: :str,
+      id: :str,
+      size: nil,
+    }
+    Record = Struct.new :repo, :tag, :id
   end
 end

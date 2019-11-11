@@ -49,6 +49,16 @@ class DockerComposeTest < Minitest::Test
     assert_equal ["0.0.0.0:23128->23128/tcp"], ctn.ports
   end
 
+  def test_images
+    imgs = from_io DockerCompose::Images, "compose_images"
+    assert_equal 1, imgs.size
+
+    img = imgs.fetch 0
+    assert_equal "ytdump", img.repo
+    assert_equal "latest", img.tag
+    assert_equal "04ec0613c084", img.id
+  end
+
   private def from_io(parser, f)
     File.open File.join(__dir__, f) do |f|
       parser.new f
