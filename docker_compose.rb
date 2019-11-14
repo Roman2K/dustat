@@ -3,12 +3,19 @@ require 'utils'
 require 'yaml'
 
 class DockerCompose
-  def initialize(cmd)
-    exe = Utils.expand_tilde(Pathname cmd.fetch(0))
-    @cmd = cmd.dup.tap { |a| a[0] = exe.to_s }
-    @project = exe.dirname.basename.to_s.tap { |s|
+  def initialize(file, cmd=["docker-compose"])
+    file = Utils.expand_tilde(Pathname file)
+    @cmd = cmd
+    @config = trim_config(file)
+    @project = file.dirname.basename.to_s.tap { |s|
       s =~ /[a-z0-9]/i or raise "couldn't determine project name"
     }
+  end
+
+  private def trim_config(file)
+    config = file.open('r') { |f| YAML.load f }
+    config.fetch("services").delete "check"
+    YAML.dump config
   end
 
   def images
@@ -27,14 +34,25 @@ class DockerCompose
   Volume = Struct.new :full, :short
 
   private def run(*cmd)
-    cmd.unshift *@cmd
-    IO.popen cmd do |p|
-      p.ungetc (p.getc or raise "command failed: %s" % [cmd * " "])
-      if block_given?
-        yield p
-      else
-        p.read
+    full_command! cmd do
+      IO.popen cmd do |p|
+        p.ungetc (p.getc or raise "command failed: %s" % [cmd * " "])
+        if block_given?
+          yield p
+        else
+          p.read
+        end
       end
+    end
+  end
+
+  private def full_command!(cmd)
+    Tempfile.create "dustat-docker-compose" do |f|
+      f << @config
+      f.close
+      cmd.unshift *@cmd
+      cmd.insert 1, "-f", f.path
+      yield
     end
   end
 

@@ -4,9 +4,10 @@ require_relative 'docker_compose'
 class Docker
   def self.short_id(id)
     unless ID === id
-      begin
-        id = ID.new id
+      id = begin
+        ID.new id
       rescue ID::InvalidHashError
+        id
       end
     end
     id.to_s
@@ -28,10 +29,22 @@ class Docker
     @cmd + cmd
   end
 
+  def run_json(*cmd)
+    run JSONResult, *cmd
+  end
+
   private def run(parser, *cmd)
     IO.popen full_cmd(*cmd, "--format", "{{json .}}") do |p|
       p.ungetc (p.getc or raise "command failed: `%s`" % [cmd * " "])
       parser.new p
+    end
+  end
+
+  class JSONResult < Array
+    def initialize(io)
+      io.each_line do |line|
+        self << JSON.load(line)
+      end
     end
   end
 
@@ -122,6 +135,7 @@ class Docker
         "Size" => :size,
       }
       Record = Struct.new :name, :links, :size do
+        alias id name
         def to_s
           Docker.short_id name
         end
