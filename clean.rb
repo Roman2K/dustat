@@ -1,4 +1,5 @@
 require 'open3'
+require 'utils'
 require_relative 'docker'
 require_relative 'docker_compose'
 
@@ -116,7 +117,7 @@ class Cleaner
         "run", "--rm", "-v", "#{@vol}:/meta", "-w", "/meta",
         "bash", "find", "-type", "f", "-not", "-name", "*.skip", "-delete",
       )
-      du_total[] - before
+      before - du_total[]
     end
   end
 
@@ -159,7 +160,7 @@ class Cleaner
             %i[containers images volumes].each do |kind|
               values[kind] = instance_variable_get("@#{kind}").
                 public_send(portion).
-                sum(&:size)
+                sum(&:size).to_i
             end
           } }
       end
@@ -223,25 +224,25 @@ class Cleaner
         uniq
     end
   end
-
-  class ImageDeps
-    def initialize(id, docker)
-      docker.run_json("image", "inspect", id).fetch(0).fetch("RootFS").fetch("Layers")
-    end
-  end
 end
 
 if $0 == __FILE__
   require 'metacli'
 
   log = Utils::Log.new(level: ENV["DEBUG"] == "1" ? :debug : :info)
-  cleaner = Cleaner.new(Docker.new, [
-    DockerCompose.new("~/code/services2/docker-compose_oneshot.yml"),
-    DockerCompose.new("~/code/services2/docker-compose/docker-compose.yml"),
-  ],
+
+  composes = (__dir__ + "/composes").yield_self do |dir|
+    Dir["#{dir}/*.yml"].map { |path|
+      log.info "using docker-compose file: #{path}"
+      DockerCompose.new path, log: log
+    }.tap { |found|
+      !found.empty? or raise "no docker-compose file found in #{dir}"
+    }
+  end
+
+  cleaner = Cleaner.new Docker.new, composes,
     keep_images: (ENV["DUSTAT_KEEP_IMAGES"] || "").split(","),
-    log: log,
-  )
+    log: log
 
   MetaCLI.new(ARGV).run cleaner
 end

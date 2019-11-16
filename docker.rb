@@ -19,6 +19,8 @@ class Docker
 
   def system_df_v
     run SystemDF, "system", "df", "-v"
+    # TODO rescue `Error response from daemon: a disk usage operation is already
+    # running`
   end
 
   def ps_a

@@ -1,20 +1,40 @@
 require 'pathname'
-require 'utils'
 require 'yaml'
 
 class DockerCompose
-  def initialize(file, cmd=["docker-compose"])
-    file = Utils.expand_tilde(Pathname file)
+  def initialize(file, cmd: ["docker-compose"], log:)
+    file = Pathname file
+    @log = log
     @cmd = cmd
-    @config = trim_config(file)
-    @project = file.dirname.basename.to_s.tap { |s|
-      s =~ /[a-z0-9]/i or raise "couldn't determine project name"
-    }
+    @config = self.class.trim_config(file)
+    @project = project_name(file)
   end
 
-  private def trim_config(file)
+  private def project_name(file)
+    src, name =
+      if file.basename.to_s =~ /^(.+)\..+\./
+        ["filename", $1]
+      else
+        ["parent directory", file.dirname.basename.to_s.tap { |s|
+          s =~ /[a-z0-9]/i or raise "couldn't determine project name"
+        }]
+      end
+
+    @log[
+      name: name,
+      file: "#{file.dirname.basename}/#{file.basename}"
+    ].info "determined project name from #{src}"
+
+    name
+  end
+
+  def self.trim_config(file)
     config = file.open('r') { |f| YAML.load f }
-    config.fetch("services").delete "check"
+    services = config.fetch "services"
+    services.delete "check"
+    services.each do |name, svc|
+      svc.delete "build"
+    end
     YAML.dump config
   end
 
@@ -51,7 +71,7 @@ class DockerCompose
       f << @config
       f.close
       cmd.unshift *@cmd
-      cmd.insert 1, "-f", f.path
+      cmd.insert 1, "-f", f.path, "-p", @project
       yield
     end
   end
