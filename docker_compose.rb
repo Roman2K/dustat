@@ -54,15 +54,13 @@ class DockerCompose
   Volume = Struct.new :full, :short
 
   private def run(*cmd)
-    full_command! cmd do
-      IO.popen cmd do |p|
-        p.ungetc (p.getc or raise "command failed: %s" % [cmd * " "])
-        if block_given?
-          yield p
-        else
-          p.read
-        end
-      end
+    out, = full_command! cmd do
+      Cleaner.capture3 *cmd, log: @log
+    end
+    if block_given?
+      yield StringIO.new(out)
+    else
+      out
     end
   end
 
@@ -77,7 +75,13 @@ class DockerCompose
   end
 
   def ps_a
-    run_parser PS, "ps", "-a"
+    Utils.retry 5, RETRIABLE_PS_A_ERR, wait: -> { 1 + rand } do
+      run_parser PS, "ps", "-a"
+    end
+  end
+
+  RETRIABLE_PS_A_ERR = -> err do
+    Cleaner::ExecError === err && err.stderr =~ /^No such container:/i
   end
 
   private def run_parser(parser, *cmd)
@@ -86,7 +90,9 @@ class DockerCompose
 
   class Parser < Array
     def initialize(io)
-      lines = io.each_line.to_a[2..-1] or raise "unexpected number of lines"
+      lines = io.each_line.to_a
+      lines[1] =~ /^-----/ or raise "unexpected output format"
+      lines = lines[2..-1] or raise "unexpected number of lines"
       self.class.unwrap_lines(lines).each do |values|
         rec = self.class::Record.new
         n = 0

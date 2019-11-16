@@ -8,9 +8,8 @@ class Cleaner
     @log = log
     @log[keep_images: keep_images].debug "new cleaner"
 
-    @docker, @composes = docker, composes
-    @docker_state = DockerState.new @docker, @composes,
-      keep_images: keep_images
+    @docker = docker
+    @docker_state = DockerState.new @docker, composes, keep_images: keep_images
 
     vol = self.class.find_volume(composes, "ytdump-meta") \
       or raise "ytdump-meta volume not found"
