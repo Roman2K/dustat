@@ -25,10 +25,23 @@ class Cleaner
     nil
   end
 
-  def self.capture3(*cmd, log:)
-    log.debug "running: `%s`" % [cmd * " "]
-    Open3.capture3(*cmd).tap do |out, err, st|
-      st.success? or raise ExecError.new(cmd, out, err, st)
+  def self.retriable_stderr(*matchers)
+    -> err do
+      case err
+      when Cleaner::ExecError
+        case err.stderr
+        when *matchers then true
+        end
+      end
+    end
+  end
+
+  def self.capture3(*cmd, log:, retry_stderr: [])
+    Utils.retry 5, retriable_stderr(*retry_stderr), wait: -> { 1 + rand } do
+      log.debug "running: `%s`" % [cmd * " "]
+      Open3.capture3(*cmd).tap do |out, err, st|
+        st.success? or raise ExecError.new(cmd, out, err, st)
+      end
     end
   end
 
@@ -102,7 +115,7 @@ class Cleaner
         "run", "--rm", "-v", "#{@vol}:/meta", "-w", "/meta",
         "bash", "-c", "du -sk *",
       ]
-      out, = Cleaner.capture3 *@docker.full_cmd(*cmd), log: log
+      out, = Cleaner.capture3 *@docker.full_cmd(cmd), log: log
       out.split("\n").map do |l|
         size, name = l.split "\t", 2
         [size.to_i * 1024, name]
@@ -112,10 +125,10 @@ class Cleaner
     def cleanup(log:)
       du_total = -> { du(log).sum { |size,| size } }
       before = du_total[]
-      yield @docker.full_cmd(
+      yield @docker.full_cmd([
         "run", "--rm", "-v", "#{@vol}:/meta", "-w", "/meta",
         "bash", "find", "-type", "f", "-not", "-name", "*.skip", "-delete",
-      )
+      ])
       before - du_total[]
     end
   end
@@ -177,10 +190,11 @@ class Cleaner
           log.debug "deleting #{type}: #{obj}" do
             begin
               run[cmd + [obj.id]]
-              count += 1
-              freed += obj.size
             rescue ExecError
               resc[$!]
+            else
+              count += 1
+              freed += obj.size
             end
           end
         end
@@ -239,7 +253,7 @@ if $0 == __FILE__
     }
   end
 
-  cleaner = Cleaner.new Docker.new, composes,
+  cleaner = Cleaner.new Docker.new(log: log), composes,
     keep_images: (ENV["DUSTAT_KEEP_IMAGES"] || "").split(","),
     log: log
 

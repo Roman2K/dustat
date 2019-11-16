@@ -53,9 +53,9 @@ class DockerCompose
 
   Volume = Struct.new :full, :short
 
-  private def run(*cmd)
+  private def run(*cmd, **opts)
     out, = full_command! cmd do
-      Cleaner.capture3 *cmd, log: @log
+      Cleaner.capture3 *cmd, log: @log, **opts
     end
     if block_given?
       yield StringIO.new(out)
@@ -75,13 +75,7 @@ class DockerCompose
   end
 
   def ps_a
-    Utils.retry 5, RETRIABLE_PS_A_ERR, wait: -> { 1 + rand } do
-      run_parser PS, "ps", "-a"
-    end
-  end
-
-  RETRIABLE_PS_A_ERR = -> err do
-    Cleaner::ExecError === err && err.stderr =~ /^No such container:/i
+    run_parser PS, "ps", "-a", retry_stderr: /^No such container:/i
   end
 
   private def run_parser(parser, *cmd)

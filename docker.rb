@@ -13,21 +13,21 @@ class Docker
     id.to_s
   end
 
-  def initialize(cmd=["docker"])
+  def initialize(cmd: ["docker"], log:)
     @cmd = cmd
+    @log = log
   end
 
   def system_df_v
-    run SystemDF, "system", "df", "-v"
-    # TODO rescue `Error response from daemon: a disk usage operation is already
-    # running`
+    run SystemDF, "system", "df", "-v", retry_stderr:
+      /^Error response from daemon: a disk usage operation is already running/
   end
 
   def ps_a
     run PS, "ps", "-a"
   end
 
-  def full_cmd(*cmd)
+  def full_cmd(cmd)
     @cmd + cmd
   end
 
@@ -35,11 +35,12 @@ class Docker
     run JSONResult, *cmd
   end
 
-  private def run(parser, *cmd)
-    IO.popen full_cmd(*cmd, "--format", "{{json .}}") do |p|
-      p.ungetc (p.getc or raise "command failed: `%s`" % [cmd * " "])
-      parser.new p
-    end
+  private def run(parser, *cmd, **opts)
+    out, = Cleaner.capture3(
+      *full_cmd([*cmd, "--format", "{{json .}}"]),
+      **opts, log: @log,
+    )
+    parser.new StringIO.new(out)
   end
 
   class JSONResult < Array
