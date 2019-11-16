@@ -180,7 +180,7 @@ class Cleaner
 
     def cleanup(log:)
       run = -> cmd do
-        yield @docker.full_cmd(*cmd)
+        yield @docker.full_cmd(cmd)
       end
 
       total_freed = 0
