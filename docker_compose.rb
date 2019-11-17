@@ -39,7 +39,7 @@ class DockerCompose
   end
 
   def images
-    run_parser Images, "images"
+    run_parser Images, "images", retry_stderr: /^No such container:/i
   end
 
   def config_images
