@@ -142,6 +142,9 @@ class Docker
         def to_s
           Docker.short_id name
         end
+        def anon?
+          name =~ /^[a-f0-9]{64}$/
+        end
       end
     end
 

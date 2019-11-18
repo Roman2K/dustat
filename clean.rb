@@ -184,18 +184,23 @@ class Cleaner
       end
 
       total_freed = 0
-      delete_all = -> cmd, objs, type, &resc do
+      delete_all = -> cmd, objs, type, log_level: :debug, &resc do
         count = freed = 0
+        tlog = log[type]
         objs.each do |obj|
-          log.debug "deleting #{type}: #{obj}" do
-            begin
-              run[cmd + [obj.id]]
-            rescue ExecError
-              resc[$!]
-            else
-              count += 1
-              freed += obj.size
-            end
+          olog = tlog[obj]
+          olog.debug "deleting"
+          lvl = log_level
+          lvl = lvl[obj] if Proc === lvl
+          begin
+            run[cmd + [obj.id]]
+          rescue ExecError => err
+            olog[err: err].debug "failed to delete"
+            resc[err]
+          else
+            count += 1
+            freed += obj.size
+            olog.public_send(lvl, "deleted")
           end
         end
         log[count: count].info "#{type}: freed %s" % [Utils::Fmt.size(freed)]
@@ -208,14 +213,18 @@ class Cleaner
         else raise err
         end
       end
-      delete_all[["image", "rm"], sort_images(@images.rest), "image"] do |err|
+      delete_all[["image", "rm"], sort_images(@images.rest), "image",
+        log_level: -> i { Docker::NormImage.new(i).repo ? :info : :debug },
+      ] do |err|
         case err.stderr
         when /has dependent child images/
         when /is being used by/
         else raise err
         end
       end
-      delete_all[["volume", "rm"], @volumes.rest, "volume"] do |err|
+      delete_all[["volume", "rm"], @volumes.rest, "volume",
+        log_level: -> v { v.anon? ? :debug : :info },
+      ] do |err|
         case err.stderr
         when /volume is in use/
         else raise err

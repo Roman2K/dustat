@@ -76,4 +76,13 @@ class DockerTest < Minitest::Test
     ])
     refute img === b
   end
+
+  def test_Volume
+    vol = Docker::SystemDF::Volumes::Record.new \
+      "7e5fa6c82051dc33068deb6d4733f63681aedb2af962f18675ebe72e2609e86a"
+    assert vol.anon?
+
+    vol = Docker::SystemDF::Volumes::Record.new("radarr")
+    refute vol.anon?
+  end
 end
