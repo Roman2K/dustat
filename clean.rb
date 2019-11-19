@@ -72,7 +72,7 @@ class Cleaner
     total_freed = 0
     {docker: @docker_state, ytdump: @ytdump_meta}.each do |name, obj|
       obj_log = log[name]
-      obj_log.info "cleaning up"
+      obj_log.debug "cleaning up"
       freed = obj.cleanup log: obj_log, &run
       obj_log.info "finished: freed %s" % [Utils::Fmt.size(freed)]
       total_freed += freed
@@ -255,7 +255,7 @@ if $0 == __FILE__
 
   composes = (__dir__ + "/composes").yield_self do |dir|
     Dir["#{dir}/*.yml"].map { |path|
-      log.info "using docker-compose file: #{path}"
+      log.debug "using docker-compose file: #{path}"
       DockerCompose.new path, log: log
     }.tap { |found|
       !found.empty? or raise "no docker-compose file found in #{dir}"

@@ -23,7 +23,7 @@ class DockerCompose
     @log[
       name: name,
       file: "#{file.dirname.basename}/#{file.basename}"
-    ].info "determined project name from #{src}"
+    ].debug "determined project name from #{src}"
 
     name
   end
