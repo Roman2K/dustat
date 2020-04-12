@@ -4,7 +4,7 @@ require_relative 'docker'
 require_relative 'docker_compose'
 
 class Cleaner
-  def initialize(docker, composes, keep_images: [], log:)
+  def initialize(docker, composes, sys, keep_images: [], log:)
     @log = log
     @log[keep_images: keep_images].info "new cleaner"
 
@@ -14,6 +14,8 @@ class Cleaner
     vol = self.class.find_volume(composes, "ytdump-meta") \
       or raise "ytdump-meta volume not found"
     @ytdump_meta = YtdumpMeta.new(docker, vol.full)
+
+    @sys = sys
   end
 
   def self.find_volume(composes, short)
@@ -89,7 +91,7 @@ class Cleaner
     timestamp = InfluxDB.convert_timestamp Time.now,
       influx.config.time_precision
 
-    points = [@docker_state, @ytdump_meta].flat_map do |obj|
+    points = [@docker_state, @ytdump_meta, @sys].flat_map do |obj|
       obj.stats_influx_points timestamp, log: log
     end
 
@@ -247,12 +249,39 @@ class Cleaner
         uniq
     end
   end
+
+  class Sys
+    def initialize(du_mnt: {}, du: {})
+      @du_mnt, @du = du_mnt, du
+    end
+
+    def stats_influx_points(timestamp, log:)
+      @du_mnt.map { |name, path|
+        used = Utils.df_bytes path, col: :used
+        log["du_mnt", mnt: name].info "used %s at %s" \
+          % [Utils::Fmt.size(used), path]
+        { series: "du_sys_du_mnt",
+          timestamp: timestamp,
+          tags: {name: name},
+          values: {used: used} }
+      } + @du.map { |name, path|
+        used = Utils.du_bytes path
+        log["du", mnt: name].info "used %s at %s" \
+          % [Utils::Fmt.size(used), path]
+        { series: "du_sys_du",
+          timestamp: timestamp,
+          tags: {name: name},
+          values: {used: used} }
+      }
+    end
+  end
 end
 
 if $0 == __FILE__
   require 'metacli'
 
   log = Utils::Log.new(level: ENV["DEBUG"] == "1" ? :debug : :info)
+  conf = Utils::Conf.new "config.yml"
 
   composes = (__dir__ + "/composes").yield_self do |dir|
     Dir["#{dir}/*.yml"].map { |path|
@@ -263,8 +292,18 @@ if $0 == __FILE__
     }
   end
 
-  cleaner = Cleaner.new Docker.new(log: log), composes,
-    keep_images: (ENV["DUSTAT_KEEP_IMAGES"] || "").split(","),
+  sys = Cleaner::Sys.new  **conf[:sys].
+    to_hash.transform_values { |paths|
+      paths.to_hash.transform_values { |p|
+        Utils.expand_tilde p
+      }
+    }
+
+  keep_images = (ENV["DUSTAT_KEEP_IMAGES"] || "").split(",").
+    concat conf[:docker][:keep_images]
+
+  cleaner = Cleaner.new Docker.new(log: log), composes, sys,
+    keep_images: keep_images,
     log: log
 
   MetaCLI.new(ARGV).run cleaner

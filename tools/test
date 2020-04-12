@@ -1,6 +1,6 @@
 #!/usr/bin/env ruby
 
-require 'bundler'
+gem 'bundler'; require 'bundler'
 Bundler.setup
 
 Dir.glob __dir__ + "/../test/**/*.rb" do |f|

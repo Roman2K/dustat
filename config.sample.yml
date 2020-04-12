@@ -1,0 +1,11 @@
+docker:
+  keep_images:
+    - slack-backup
+    - bash
+    - sftp
+sys:
+  du_mnt:
+    data: ~/windata
+  du:
+    ng: ~/windata/ng
+    torrents: ~/windata/torrents

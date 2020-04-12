@@ -1,5 +1,6 @@
 require 'pathname'
 require 'yaml'
+require 'tempfile'
 
 class DockerCompose
   def initialize(file, cmd: ["docker-compose"], log:)
@@ -78,8 +79,8 @@ class DockerCompose
     run_parser PS, "ps", "-a", retry_stderr: /^No such container:/i
   end
 
-  private def run_parser(parser, *cmd)
-    run(*cmd) { |p| parser.new p }
+  private def run_parser(parser, *cmd, **opts)
+    run(*cmd, **opts) { |p| parser.new p }
   end
 
   class Parser < Array

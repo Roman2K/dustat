@@ -6,14 +6,14 @@ GIT
 
 GIT
   remote: https://github.com/Roman2K/utils-ruby.git
-  revision: 326a806500f75547494ac4395dac09b365873dfa
+  revision: 6d89e638d7f237c48767fe90c95b93802023c607
   specs:
     utils-ruby (0.1.0)
 
 GEM
   remote: https://rubygems.org/
   specs:
-    influxdb (0.7.0)
+    influxdb (0.8.0)
     minitest (5.13.0)
 
 PLATFORMS
@@ -26,4 +26,4 @@ DEPENDENCIES
   utils-ruby!
 
 BUNDLED WITH
-   2.0.2
+   2.1.4
