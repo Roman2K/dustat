@@ -6,7 +6,7 @@ require_relative 'docker_compose'
 class Cleaner
   def initialize(docker, composes, keep_images: [], log:)
     @log = log
-    @log[keep_images: keep_images].debug "new cleaner"
+    @log[keep_images: keep_images].info "new cleaner"
 
     @docker = docker
     @docker_state = DockerState.new @docker, composes, keep_images: keep_images
@@ -219,6 +219,7 @@ class Cleaner
         case err.stderr
         when /has dependent child images/
         when /is being used by/
+        when /image is referenced in multiple repositories/
         else raise err
         end
       end
