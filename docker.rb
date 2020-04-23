@@ -87,7 +87,7 @@ class Docker
     UNITS = %w[B KB MB GB TB]
 
     def self.conv_size(s)
-      num = s[/^[\d\.]+/] or raise "invalid size: %p" % [s]
+      num = s[/^(1e\+)?[\d\.]+/] or raise "invalid size: %p" % [s]
       num, unit = num.to_f, $'
       unit = UNITS.index(unit.upcase) or raise "unknown unit: %p" % [s]
       num * (1024 ** unit)
@@ -139,12 +139,8 @@ class Docker
       }
       Record = Struct.new :name, :links, :size do
         alias id name
-        def to_s
-          Docker.short_id name
-        end
-        def anon?
-          name =~ /^[a-f0-9]{64}$/
-        end
+        def to_s; Docker.short_id name end
+        def anon?; name =~ /^[a-f0-9]{64}$/ end
       end
     end
 

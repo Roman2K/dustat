@@ -1,12 +1,12 @@
 GIT
   remote: https://github.com/Roman2K/metacli.git
-  revision: 9c89884a75664725a8c7f85c081fb699995cf582
+  revision: 02f34bfcf78c4540e62588a3200e9295ba9b72e8
   specs:
     metacli (0.1.0)
 
 GIT
   remote: https://github.com/Roman2K/utils-ruby.git
-  revision: 3bc598d9387c484b9f9a8e29a4eb5a66368e8d4f
+  revision: 1743e309051e4920109982274846f94089d7e1f3
   specs:
     utils-ruby (0.1.0)
 
@@ -14,7 +14,7 @@ GEM
   remote: https://rubygems.org/
   specs:
     influxdb (0.8.0)
-    minitest (5.13.0)
+    minitest (5.14.0)
 
 PLATFORMS
   ruby

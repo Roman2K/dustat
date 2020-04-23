@@ -20,6 +20,11 @@ class DockerTest < Minitest::Test
     assert_equal 0, df.fetch("BuildCache").count
   end
 
+  def test_conv_size
+    assert_equal 17845589114.88, Docker::Section.conv_size("16.62GB")
+    assert_equal 1048576000, Docker::Section.conv_size("1e+03MB")
+  end
+
   private def from_io(parser, f)
     File.open File.join(__dir__, f) do |f|
       parser.new f
