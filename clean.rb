@@ -255,6 +255,8 @@ class Cleaner
       @du_mnt, @du = du_mnt, du
     end
 
+    DU_FAIL_ERR = -> err { err.message =~ /\bdu failed\b/ }
+
     def stats_influx_points(timestamp, log:)
       @du_mnt.map { |name, path|
         used = Utils.df_bytes path, col: :used
@@ -265,7 +267,9 @@ class Cleaner
           tags: {name: name},
           values: {used: used} }
       } + @du.map { |name, path|
-        used = Utils.du_bytes path
+        used = Utils.retry 5, DU_FAIL_ERR, wait: ->{ 1 + rand } do
+          Utils.du_bytes path
+        end
         log["du", mnt: name].info "used %s at %s" \
           % [Utils::Fmt.size(used), path]
         { series: "du_sys_du",
