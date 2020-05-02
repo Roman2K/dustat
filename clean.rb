@@ -265,14 +265,19 @@ class Cleaner
           tags: {name: name},
           values: {used: used} }
       } + @du.map { |name, path|
-        used = Utils.du_bytes_retry path
-        log["du", path: name].info "used %s at %s" \
-          % [Utils::Fmt.size(used), path]
+        path_log = log["du", path: name]
+        used = begin
+          Utils::DU.bytes path
+        rescue Utils::DU::RaceCondError
+          path_log.warn "race condition"
+          next
+        end
+        path_log.info "used %s at %s" % [Utils::Fmt.size(used), path]
         { series: "du_sys_du",
           timestamp: timestamp,
           tags: {name: name},
           values: {used: used} }
-      }
+      }.compact
     end
   end
 end
