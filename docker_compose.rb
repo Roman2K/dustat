@@ -23,8 +23,9 @@ class DockerCompose
 
     @log[
       name: name,
-      file: "#{file.dirname.basename}/#{file.basename}"
-    ].debug "determined project name from #{src}"
+      file: "#{file.dirname.basename}/#{file.basename}",
+      src: src,
+    ].debug "determined project name"
 
     name
   end
@@ -33,9 +34,7 @@ class DockerCompose
     config = file.open('r') { |f| YAML.load f }
     services = config.fetch "services"
     services.delete "check"
-    services.each do |name, svc|
-      svc.delete "build"
-    end
+    services.each_value { _1.delete "build" }
     YAML.dump config
   end
 
@@ -45,7 +44,9 @@ class DockerCompose
 
   def config_images
     run("config") { |p| YAML.load p }.
-      fetch("services").map { |k,v| v["image"] }.compact.uniq
+      fetch("services").
+      filter_map { |k,v| v["image"] }.
+      uniq
   end
 
   def volumes

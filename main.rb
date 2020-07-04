@@ -1,21 +1,21 @@
 require 'open3'
-require 'utils'
 require_relative 'docker'
 require_relative 'docker_compose'
 
 class Cleaner
-  def initialize(docker, composes, sys, keep_images: [], log:)
+  def initialize(docker, composes, sys, ytdump:, keep_images: [], influx:, log:)
     @log = log
     @log[keep_images: keep_images].info "new cleaner"
+    @influx = influx
 
     @docker = docker
     @docker_state = DockerState.new @docker, composes, keep_images: keep_images
-
-    vol = self.class.find_volume(composes, "ytdump-meta") \
-      or raise "ytdump-meta volume not found"
-    @ytdump_meta = YtdumpMeta.new(docker, vol.full)
-
     @sys = sys
+
+    @ytdump_meta = self.class.find_volume(composes, "ytdump-meta").then do |vol|
+      vol or raise "ytdump-meta volume not found"
+      YtdumpMeta.new(docker, vol.full)
+    end if ytdump
   end
 
   def self.find_volume(composes, short)
@@ -73,6 +73,7 @@ class Cleaner
 
     total_freed = 0
     {docker: @docker_state, ytdump: @ytdump_meta}.each do |name, obj|
+      obj or next
       obj_log = log[name]
       obj_log.debug "cleaning up"
       freed = obj.cleanup log: obj_log, &run
@@ -82,20 +83,18 @@ class Cleaner
     log.info "total freed: %s" % [Utils::Fmt.size(total_freed)]
   end
 
-  def cmd_stats(influx, write_influx: true)
+  def cmd_stats
     log = @log["stats"]
-    log[write_influx: write_influx].info "running"
+    log.info "running"
 
-    influx = Utils::Influx.new_client influx
-    influx = Utils::Influx::WritesDebug.new influx, log if !write_influx
     timestamp = InfluxDB.convert_timestamp Time.now,
-      influx.config.time_precision
+      @influx.config.time_precision
 
-    points = [@docker_state, @ytdump_meta, @sys].flat_map do |obj|
-      obj.stats_influx_points timestamp, log: log
-    end
-
-    influx.write_points points
+    @influx.write_points Enumerator::Chain.new(
+      *[@docker_state, @sys, @ytdump_meta].
+        compact.
+        map { _1.influx_points timestamp, log: log }
+    ).to_a
   end
 
   class YtdumpMeta
@@ -103,7 +102,7 @@ class Cleaner
       @docker, @vol = docker, vol
     end
 
-    def stats_influx_points(timestamp, log:)
+    def influx_points(timestamp, log:)
       du(log).map do |size, name|
         { series: "du_ytdump",
           timestamp: timestamp,
@@ -126,12 +125,12 @@ class Cleaner
 
     def cleanup(log:)
       du_total = -> { du(log).sum { |size,| size } }
-      before = du_total[]
+      before = du_total.()
       yield @docker.full_cmd([
         "run", "--rm", "-v", "#{@vol}:/meta", "-w", "/meta",
         "bash", "find", "-type", "f", "-not", "-name", "*.skip", "-delete",
       ])
-      before - du_total[]
+      before - du_total.()
     end
   end
 
@@ -165,7 +164,7 @@ class Cleaner
 
     attr_reader :containers, :images, :volumes
 
-    def stats_influx_points(timestamp, log:)
+    def influx_points(timestamp, log:)
       {wanted: true, rest: false}.map do |portion, wanted|
         { series: "du_docker",
           timestamp: timestamp,
@@ -245,7 +244,7 @@ class Cleaner
         layers[img] = res.fetch("RootFS").fetch("Layers")
       end
       imgs.
-        flat_map { |img| layers.fetch(img).map(&find_img).compact << img }.
+        flat_map { |img| layers.fetch(img).filter_map(&find_img) << img }.
         uniq
     end
   end
@@ -255,16 +254,22 @@ class Cleaner
       @du_mnt, @du = du_mnt, du
     end
 
-    def stats_influx_points(timestamp, log:)
-      @du_mnt.map { |name, path|
+    def influx_points(*args, **opts)
+      enum_for :each_influx_point, *args, **opts
+    end
+
+    private def each_influx_point(timestamp, log:)
+      @du_mnt.each do |name, path|
         used = Utils.df_bytes path, col: :used
         log["du_mnt", mnt: name].info "used %s at %s" \
           % [Utils::Fmt.size(used), path]
-        { series: "du_sys_du_mnt",
+        yield \
+          series: "du_sys_du_mnt",
           timestamp: timestamp,
           tags: {name: name},
-          values: {used: used} }
-      } + @du.map { |name, path|
+          values: {used: used}
+      end
+      @du.each do |name, path|
         path_log = log["du", path: name]
         used = begin
           Utils::DU.bytes path
@@ -273,20 +278,29 @@ class Cleaner
           next
         end
         path_log.info "used %s at %s" % [Utils::Fmt.size(used), path]
-        { series: "du_sys_du",
+        yield \
+          series: "du_sys_du",
           timestamp: timestamp,
           tags: {name: name},
-          values: {used: used} }
-      }.compact
+          values: {used: used}
+      end
     end
   end
 end
 
 if $0 == __FILE__
+  require 'utils'
   require 'metacli'
 
-  log = Utils::Log.new(level: ENV["DEBUG"] == "1" ? :debug : :info)
+  log = Utils::Log.new level: :info
+  log.level = :debug if ENV["DEBUG"] == "1"
   conf = Utils::Conf.new "config.yml"
+
+  influx = Utils::Influx.new_client conf[:influx][:url]
+  if conf[:influx][:dry_run]
+    influx = Utils::Influx::WritesDebug.new influx, log["influx"],
+      log_level: :debug
+  end
 
   composes = (__dir__ + "/composes").yield_self do |dir|
     Dir["#{dir}/*.yml"].map { |path|
@@ -297,18 +311,17 @@ if $0 == __FILE__
     }
   end
 
-  sys = Cleaner::Sys.new  **conf[:sys].
-    to_hash.transform_values { |paths|
-      paths.to_hash.transform_values { |p|
-        Utils.expand_tilde p
-      }
-    }
+  sys = Cleaner::Sys.new **conf[:sys].to_hash.transform_values { |paths|
+    paths.to_hash.transform_values { Utils.expand_tilde _1 }
+  }
 
   keep_images = (ENV["DUSTAT_KEEP_IMAGES"] || "").split(",").
     concat conf[:docker][:keep_images]
 
   cleaner = Cleaner.new Docker.new(log: log), composes, sys,
     keep_images: keep_images,
+    ytdump: conf[:ytdump],
+    influx: influx,
     log: log
 
   MetaCLI.new(ARGV).run cleaner
