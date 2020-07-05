@@ -1,3 +1,4 @@
-.ruby-version
+/.ruby-version
 /composes/
 /config.yml
+/test_*.sh
